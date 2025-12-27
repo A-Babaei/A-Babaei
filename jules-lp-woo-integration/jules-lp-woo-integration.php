@@ -4,7 +4,7 @@
  * Plugin URI:        https://example.com/
  * Description:       A custom integration for LearnPress and WooCommerce to allow courses to be sold as products.
  * Version:           1.0.0
- * Author:            Jules
+ * Author:            A.Babaei
  * Author URI:        https://example.com/
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -228,7 +228,7 @@ function jlwi_add_admin_menu() {
 		'learn_press',
 		__( 'WooCommerce Integration', 'jules-lp-woo-integration' ),
 		__( 'Woo Integration', 'jules-lp-woo-integration' ),
-		'lp_manage_settings',
+		'lp_manage_courses',
 		'jules-lp-woo-integration',
 		'jlwi_render_settings_page'
 	);
