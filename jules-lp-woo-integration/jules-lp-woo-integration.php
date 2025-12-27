@@ -228,7 +228,7 @@ function jlwi_add_admin_menu() {
 		'learn_press',
 		__( 'WooCommerce Integration', 'jules-lp-woo-integration' ),
 		__( 'Woo Integration', 'jules-lp-woo-integration' ),
-		'manage_options',
+		'lp_manage_settings',
 		'jules-lp-woo-integration',
 		'jlwi_render_settings_page'
 	);
