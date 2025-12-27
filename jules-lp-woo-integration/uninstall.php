@@ -11,7 +11,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 
 // Check if the user has opted to clean up data on uninstall.
-$cleanup = get_option( 'lwp_cleanup_on_uninstall' );
+$cleanup = get_option( 'jlwi_cleanup_on_uninstall' );
 
 if ( $cleanup ) {
 	// Get all LearnPress courses.
@@ -28,7 +28,7 @@ if ( $cleanup ) {
 	// If there are courses, loop through them and delete the associated products.
 	if ( ! empty( $course_ids ) ) {
 		foreach ( $course_ids as $course_id ) {
-			$product_id = get_post_meta( $course_id, '_lp_woo_product_id', true );
+			$product_id = get_post_meta( $course_id, '_jlwi_product_id', true );
 
 			if ( $product_id ) {
 				// true to permanently delete, false to move to trash.
@@ -36,10 +36,10 @@ if ( $cleanup ) {
 			}
 
 			// Delete the meta key from the course as well.
-			delete_post_meta( $course_id, '_lp_woo_product_id' );
+			delete_post_meta( $course_id, '_jlwi_product_id' );
 		}
 	}
 
 	// Delete the cleanup option itself.
-	delete_option( 'lwp_cleanup_on_uninstall' );
+	delete_option( 'jlwi_cleanup_on_uninstall' );
 }
