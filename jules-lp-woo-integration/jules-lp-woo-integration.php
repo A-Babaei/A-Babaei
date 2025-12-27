@@ -18,6 +18,34 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
+ * Run a bulk sync once on plugin activation.
+ * This ensures all existing courses are synced without needing manual intervention.
+ */
+function jlwi_activate_plugin() {
+	// Check if the initial sync has already been done to prevent re-running on every activation.
+	if ( ! get_option( 'jlwi_initial_sync_done' ) ) {
+		$args = array(
+			'post_type'      => 'lp_course',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		);
+		$courses_query = new WP_Query( $args );
+		$course_ids    = $courses_query->posts;
+
+		if ( ! empty( $course_ids ) ) {
+			foreach ( $course_ids as $course_id ) {
+				jlwi_sync_course_to_product( $course_id );
+			}
+		}
+
+		// Set a flag so this doesn't run again.
+		add_option( 'jlwi_initial_sync_done', true );
+	}
+}
+register_activation_hook( __FILE__, 'jlwi_activate_plugin' );
+
+/**
  * Core function to sync a LearnPress course to a WooCommerce product.
  *
  * @param int $course_id The ID of the LearnPress course.
