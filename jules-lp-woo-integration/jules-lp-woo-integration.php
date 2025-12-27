@@ -40,10 +40,19 @@ function jlwi_activate_plugin() {
 		}
 
 		// Set a flag so this doesn't run again.
-		add_option( 'jlwi_initial_sync_done', true );
+		update_option( 'jlwi_initial_sync_done', true );
 	}
 }
 register_activation_hook( __FILE__, 'jlwi_activate_plugin' );
+
+/**
+ * Clean up the initial sync flag on deactivation.
+ * This allows the automatic sync to run again if the plugin is reactivated.
+ */
+function jlwi_deactivate_plugin() {
+	delete_option( 'jlwi_initial_sync_done' );
+}
+register_deactivation_hook( __FILE__, 'jlwi_deactivate_plugin' );
 
 /**
  * Core function to sync a LearnPress course to a WooCommerce product.
@@ -272,16 +281,38 @@ function jlwi_render_settings_page() {
 		<h1><?php esc_html_e( 'LearnPress WooCommerce Integration', 'jules-lp-woo-integration' ); ?></h1>
 		<p><?php esc_html_e( 'Use the tools below to manage the integration between LearnPress and WooCommerce.', 'jules-lp-woo-integration' ); ?></p>
 
-		<form method="post" action="">
-			<h2><?php esc_html_e( 'Manual Synchronization', 'jules-lp-woo-integration' ); ?></h2>
-			<p><?php esc_html_e( 'Click the button below to manually sync all existing LearnPress courses to WooCommerce products. This is useful for initial setup or if you suspect some courses are out of sync.', 'jules-lp-woo-integration' ); ?></p>
-			<?php wp_nonce_field( 'jlwi_bulk_sync_nonce', 'jlwi_bulk_sync_nonce_field' ); ?>
-			<p>
-				<button type="submit" name="jlwi_bulk_sync" class="button button-primary">
-					<?php esc_html_e( 'Bulk Sync Courses', 'jules-lp-woo-integration' ); ?>
-				</button>
-			</p>
-		</form>
+		<div id="jlwi-sync-wrapper">
+			<h2><?php esc_html_e( 'Course Synchronization', 'jules-lp-woo-integration' ); ?></h2>
+			<p><?php esc_html_e( 'Click the button to sync all your LearnPress courses with WooCommerce products. This process runs in batches to prevent server timeouts.', 'jules-lp-woo-integration' ); ?></p>
+
+			<button id="jlwi-sync-button" class="button button-primary">
+				<?php esc_html_e( 'Sync All Courses Now', 'jules-lp-woo-integration' ); ?>
+			</button>
+
+			<div id="jlwi-sync-status" style="display:none; margin-top: 15px;">
+				<!-- Progress updates will be inserted here by admin-sync.js -->
+			</div>
+		</div>
+
+		<style>
+			#jlwi-sync-wrapper .jlwi-progress-bar {
+				width: 100%;
+				background-color: #f3f3f3;
+				border: 1px solid #ccc;
+				border-radius: 4px;
+				margin-top: 10px;
+			}
+			#jlwi-sync-wrapper .jlwi-progress {
+				width: 0%;
+				height: 20px;
+				background-color: #4CAF50;
+				text-align: center;
+				line-height: 20px;
+				color: white;
+				border-radius: 4px;
+				transition: width 0.3s ease-in-out;
+			}
+		</style>
 
 		<hr>
 
@@ -347,3 +378,78 @@ function jlwi_handle_bulk_sync() {
 	}
 }
 add_action( 'admin_init', 'jlwi_handle_bulk_sync' );
+
+/**
+ * Enqueue admin scripts for the settings page.
+ *
+ * @param string $hook The current admin page hook.
+ */
+function jlwi_enqueue_admin_scripts( $hook ) {
+	// Only load this script on our plugin's settings page.
+	if ( 'learnpress_page_jules-lp-woo-integration' !== $hook ) {
+		return;
+	}
+	wp_enqueue_script(
+		'jlwi-admin-sync',
+		plugin_dir_url( __FILE__ ) . 'admin-sync.js',
+		array( 'jquery' ),
+		'1.0.0',
+		true
+	);
+	wp_localize_script(
+		'jlwi-admin-sync',
+		'jlwi_sync_vars',
+		array(
+			'nonce' => wp_create_nonce( 'jlwi_sync_nonce' ),
+		)
+	);
+}
+add_action( 'admin_enqueue_scripts', 'jlwi_enqueue_admin_scripts' );
+
+/**
+ * AJAX handler to start the synchronization process.
+ * Gathers all course IDs to be processed.
+ */
+function jlwi_start_sync_ajax() {
+	check_ajax_referer( 'jlwi_sync_nonce', 'nonce' );
+
+	$args = array(
+		'post_type'      => 'lp_course',
+		'post_status'    => 'publish',
+		'posts_per_page' => -1,
+		'fields'         => 'ids',
+	);
+	$courses_query = new WP_Query( $args );
+	$course_ids    = $courses_query->posts;
+
+	if ( empty( $course_ids ) ) {
+		wp_send_json_error( array( 'message' => 'No courses found to sync.' ) );
+	}
+
+	wp_send_json_success( array( 'courses' => $course_ids ) );
+}
+add_action( 'wp_ajax_jlwi_start_sync', 'jlwi_start_sync_ajax' );
+
+/**
+ * AJAX handler to process a single batch of courses.
+ */
+function jlwi_process_batch_ajax() {
+	check_ajax_referer( 'jlwi_sync_nonce', 'nonce' );
+
+	if ( ! isset( $_POST['courses'] ) || ! is_array( $_POST['courses'] ) ) {
+		wp_send_json_error( array( 'message' => 'Invalid course data provided.' ) );
+	}
+
+	$courses_batch = array_map( 'intval', $_POST['courses'] );
+	$processed_count = 0;
+
+	foreach ( $courses_batch as $course_id ) {
+		if ( $course_id > 0 ) {
+			jlwi_sync_course_to_product( $course_id );
+			$processed_count++;
+		}
+	}
+
+	wp_send_json_success( array( 'processed_count' => $processed_count ) );
+}
+add_action( 'wp_ajax_jlwi_process_batch', 'jlwi_process_batch_ajax' );
