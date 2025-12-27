@@ -19,6 +19,7 @@ cp -r "$SOURCE_DIR/"* "$BUILD_DIR/"
 # --- Create the new zip file from the build directory ---
 echo "Creating new ZIP file..."
 cd "$BUILD_DIR"
+# Make sure to include all files and the admin directory
 zip -r "../$ZIP_FILE" ./*
 
 # --- Final cleanup ---
